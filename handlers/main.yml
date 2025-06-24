@@ -1,0 +1,8 @@
+---
+# handlers file for influx_telegraf
+- name: restart telegraf
+  service:
+    name: telegraf
+    state: restarted
+    enabled: true
+

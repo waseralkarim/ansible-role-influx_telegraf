@@ -1,0 +1,99 @@
+---
+# tasks file for influx_telegraf
+- name: Install required dependencies
+  apt:
+    name: gnupg
+    state: present
+    update_cache: true
+
+- name: Download GPG key
+  get_url:
+    url: "{{ gpg_key_url }}"
+    dest: /tmp/influxdata-archive_compat.key
+    mode: '0644'
+
+- name: Verify GPG key SHA256 checksum
+  shell: |
+    echo '{{ gpg_key_checksum }} /tmp/influxdata-archive_compat.key' | sha256sum -c
+  register: key_check
+  failed_when: "'OK' not in key_check.stdout"
+
+- name: Convert GPG key to binary format and save
+  shell: |
+    cat /tmp/influxdata-archive_compat.key | gpg --dearmor | tee {{ gpg_key_path }} > /dev/null
+
+- name: Add InfluxDB APT repository
+  copy:
+    dest: "{{ influxdb_list_path }}"
+    content: "deb [signed-by={{ gpg_key_path }}] {{ influxdb_repo_url }}/debian stable main"
+    mode: '0644'
+
+- name: Update APT cache
+  apt:
+    update_cache: true
+
+- name: Install InfluxDB
+  apt:
+    name: influxdb
+    state: present
+
+- name: Enable and start InfluxDB service
+  service:
+    name: influxdb
+    state: started
+    enabled: true
+
+- name: Install Telegraf
+  apt:
+    name: telegraf
+    state: present
+
+- name: Create minimal working telegraf.conf
+  copy:
+    dest: "{{ telegraf_config_path }}"
+    content: |
+      [agent]
+        interval = "10s"
+        round_interval = true
+        metric_batch_size = 1000
+        metric_buffer_limit = 10000
+        collection_jitter = "0s"
+        flush_interval = "10s"
+        flush_jitter = "0s"
+        precision = ""
+        hostname = ""
+        omit_hostname = false
+
+      [[outputs.influxdb]]
+        urls = ["{{ influxdb_url }}"]
+        database = "{{ telegraf_db }}"
+
+      [[inputs.cpu]]
+        percpu = true
+        totalcpu = true
+        collect_cpu_time = false
+        report_active = false
+
+      [[inputs.mem]]
+      [[inputs.disk]]
+        ignore_fs = ["tmpfs", "devtmpfs", "devfs"]
+  notify: restart telegraf
+
+- name: Wait for InfluxDB to become available
+  uri:
+    url: "{{ influxdb_url }}/ping"
+    status_code: 204
+    timeout: 10
+  register: result
+  retries: 5
+  delay: 2
+  until: result.status == 204
+
+- name: Create Telegraf database in InfluxDB
+  shell: |
+    influx -execute 'CREATE DATABASE {{ telegraf_db }}'
+  args:
+    warn: false
+  register: influx_created
+  failed_when: false
+

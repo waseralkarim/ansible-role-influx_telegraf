@@ -1,0 +1,11 @@
+---
+# defaults file for influx_telegraf
+influxdb_repo_url: https://repos.influxdata.com
+gpg_key_url: https://repos.influxdata.com/influxdata-archive_compat.key
+gpg_key_checksum: "393e8779c89ac8d958f81f942f9ad7fb82a25e133faddaf92e15b16e6ac9ce4c"
+gpg_key_path: /etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg
+influxdb_list_path: /etc/apt/sources.list.d/influxdata.list
+telegraf_config_path: /etc/telegraf/telegraf.conf
+influxdb_url: http://localhost:8086
+telegraf_db: telegraf
+
